@@ -1,0 +1,164 @@
+7. TCP protocol
+
+#Create a simulator object 
+set ns [new Simulator] 
+# Define different colors for data flows (for NAM) 
+$ns color 1 Blue 
+$ns color 2 Red 
+# Open the NAM trace file 
+set nf [open out.nam w] 
+$ns namtrace-all $nf 
+# Define a 'finish' procedure 
+proc finish {} { 
+global ns nf 
+$ns flush-trace 
+# Close the NAM trace file 
+close $nf 
+# Execute NAM on the trace file 
+exec nam out.nam & 
+exit 0 
+} 
+# Create four nodes 
+set n0 [$ns node] 
+set n1 [$ns node] 
+set n2 [$ns node] 
+set n3 [$ns node] 
+# Create links between the nodes 
+$ns duplex-link $n0 $n2 2Mb 10ms DropTail 
+$ns duplex-link $n1 $n2 2Mb 10ms DropTail 
+$ns duplex-link $n2 $n3 1.7Mb 20ms DropTail 
+# Set Queue Size of link (n2-n3) to a low value to induce drops 
+$ns queue-limit $n2 $n3 5  ; # Reduce to 5 packets 
+# Give node position (for NAM) 
+$ns duplex-link-op $n0 $n2 orient right-down 
+$ns duplex-link-op $n1 $n2 orient right-up 
+$ns duplex-link-op $n2 $n3 orient right 
+# Monitor the queue for link (n2-n3) (for NAM) 
+$ns duplex-link-op $n2 $n3 queuePos 0.5 
+# Setup a TCP connection 
+set tcp [new Agent/TCP] 
+$tcp set class_ 2 
+$ns attach-agent $n0 $tcp 
+set sink [new Agent/TCPSink] 
+$ns attach-agent $n3 $sink 
+$ns connect $tcp $sink 
+$tcp set fid_ 1 
+# Setup a FTP over TCP connection 
+set ftp [new Application/FTP] 
+$ftp attach-agent $tcp 
+$ftp set type_ FTP 
+# Increase the size of the file being sent to encourage drops 
+$ftp set file_size_ 1000000  ; # Set file size to 1MB 
+# Schedule events for the FTP agent 
+$ns at 1.0 "$ftp start" 
+$ns at 4.0 "$ftp stop" javascript:void(0)
+# Detach tcp and sink agents (not really necessary) 
+$ns at 4.5 "$ns detach-agent $n0 $tcp ; $ns detach-agent $n3 $sink" 
+# Call the finish procedure after 5 seconds of simulation time 
+$ns at 5.0 "finish" 
+# Print TCP packet size and rate 
+set packet_size 1000       
+; # Assume typical TCP packet size 
+set link_rate 2.0          ; # Link capacity in Mbps 
+puts "TCP packet size = $packet_size bytes" 
+puts "Link rate = $link_rate Mbps" 
+# Run the simulation 
+$ns run 
+
+8. UDP protocol. 
+
+# Create a simulator object 
+set ns [new Simulator] 
+# Define different colors for data flows (for NAM) 
+$ns color 1 Blue 
+$ns color 2 Red 
+# Open the NAM trace file 
+set nf [open out.nam w] 
+$ns namtrace-all $nf 
+# Define a 'finish' procedure 
+proc finish {} { 
+global ns nf 
+$ns flush-trace 
+# Close the NAM trace file 
+close $nf 
+# Execute NAM on the trace file 
+exec nam out.nam & 
+exit 0 
+} 
+# Create four nodes 
+set n0 [$ns node] 
+set n1 [$ns node] 
+set n2 [$ns node] 
+set n3 [$ns node] 
+# Create links between the nodes 
+$ns duplex-link $n0 $n2 2Mb 10ms DropTail 
+$ns duplex-link $n1 $n2 2Mb 10ms DropTail 
+$ns duplex-link $n2 $n3 1.7Mb 20ms DropTail 
+# Set Queue Size of link (n2-n3) to a moderate value 
+$ns queue-limit $n2 $n3 5;      
+# Limit to 5 packets 
+# Give node position (for NAM) 
+$ns duplex-link-op $n0 $n2 orient right-down 
+$ns duplex-link-op $n1 $n2 orient right-up 
+$ns duplex-link-op $n2 $n3 orient right 
+# Monitor the queue for link (n2-n3) (for NAM) 
+$ns duplex-link-op $n2 $n3 queuePos 0.5 
+# Setup a UDP connection 
+set udp [new Agent/UDP] 
+$ns attach-agent $n1 $udp 
+set null [new Agent/Null] 
+$ns attach-agent $n3 $null 
+$ns connect $udp $null 
+$udp set fid_ 2 
+# Setup a CBR over UDP connection 
+set cbr [new Application/Traffic/CBR] 
+$cbr attach-agent $udp 
+$cbr set type_ CBR 
+$cbr set packet_size_ 1000;      
+# Packet size of 1000 bytes 
+$cbr set rate_ 1.5mb;                
+$cbr set random_ false 
+# Set rate to 1.5 Mbps for fewer drops 
+# Schedule events for the CBR agent 
+$ns at 0.1 "$cbr start" 
+$ns at 4.5 "$cbr stop" 
+# Call the finish procedure after 10 seconds of simulation time 
+$ns at 10.0 "finish" 
+# Print CBR packet size and rate 
+puts "CBR packet size = [$cbr set packet_size_]" 
+puts "CBR rate = [$cbr set rate_]" 
+# Run the simulation
+$ns run
+
+9.  half-duplex / full-duplex
+
+import socket
+
+def start_server():
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.bind(('localhost', 8080))
+    server_socket.listen(1)
+    print("Server is listening...")
+    conn, addr = server_socket.accept()
+    print(f"Connected by {addr}")
+    while True:
+        data = conn.recv(1024).decode()
+        if not data: break
+        print(f"Client: {data}")
+        conn.send(input("Reply: ").encode())
+    conn.close()
+    server_socket.close()
+
+def start_client():
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.connect(('localhost', 8080))
+    while True:
+        client_socket.send(input("Message: ").encode())
+        data = client_socket.recv(1024).decode()
+        if not data: break
+        print(f"Server: {data}")
+    client_socket.close()
+
+if __name__ == "__main__":
+    role = input("Server or Client? ").strip().lower()
+    start_server() if role == "server" else start_client()
